@@ -15,30 +15,43 @@ app.use('/api/operations', require('./routes/operationRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 
 // Serve Static Frontend (Production)
-app.use(express.static(path.join(__dirname, 'public')));
+const publicPath = path.resolve(__dirname, 'public');
+app.use(express.static(publicPath));
 
 // Catch-all for SPA routing
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(publicPath, 'index.html'));
 });
 
+// For Vercel, we need to export the app but also init the DB
 const PORT = process.env.PORT || 5000;
 
-async function startServer() {
-  try {
-    await connectDB();
-    await sequelize.sync();
-    // Only listen if not on Vercel
-    if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-      app.listen(PORT, '0.0.0.0', () => {
-        console.log(`Server started on port ${PORT}`);
-      });
+let dbInitialised = false;
+const initDB = async () => {
+    if (dbInitialised) return;
+    try {
+          await connectDB();
+          await sequelize.sync();
+          dbInitialised = true;
+          console.log('Database initialised successfully');
+    } catch (err) {
+          console.error('Database initialisation failed:', err);
     }
-  } catch (err) {
-    console.error('Error starting server:', err);
-  }
-}
+};
 
-startServer();
+app.use(async (req, res, next) => {
+    if (!dbInitialised && req.path.startsWith('/api')) {
+          await initDB();
+    }
+    next();
+});
+
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    initDB().then(() => {
+          app.listen(PORT, '0.0.0.0', () => {
+                  console.log(`Server started on port ${PORT}`);
+          });
+    });
+}
 
 module.exports = app;
