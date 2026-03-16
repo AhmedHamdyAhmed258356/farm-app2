@@ -20,38 +20,31 @@ app.use(express.static(publicPath));
 
 // Catch-all for SPA routing
 app.get('*', (req, res) => {
-    res.sendFile(path.join(publicPath, 'index.html'));
+      res.sendFile(path.join(publicPath, 'index.html'));
 });
 
 // For Vercel, we need to export the app but also init the DB
-const PORT = process.env.PORT || 5000;
-
 let dbInitialised = false;
-const initDB = async () => {
-    if (dbInitialised) return;
-    try {
-          await connectDB();
-          await sequelize.sync();
-          dbInitialised = true;
-          console.log('Database initialised successfully');
-    } catch (err) {
-          console.error('Database initialisation failed:', err);
-    }
+const initDBCon = async () => {
+      if (dbInitialised) return;
+      try {
+              await connectDB();
+              await sequelize.sync();
+              dbInitialised = true;
+              console.log('Database initialised successfully');
+      } catch (err) {
+              console.error('Database initialisation failed:', err);
+      }
 };
 
-app.use(async (req, res, next) => {
-    if (!dbInitialised && req.path.startsWith('/api')) {
-          await initDB();
-    }
-    next();
-});
+// Start DB init but don't block the export
+initDBCon();
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-    initDB().then(() => {
-          app.listen(PORT, '0.0.0.0', () => {
-                  console.log(`Server started on port ${PORT}`);
-          });
-    });
+      const PORT = process.env.PORT || 5000;
+      app.listen(PORT, '0.0.0.0', () => {
+              console.log(`Server started on port ${PORT}`);
+      });
 }
 
 module.exports = app;
